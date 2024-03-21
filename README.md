@@ -9,6 +9,7 @@ Common lisp struct related grammars: defobj, defobjfun, objlet*, objdo*, defobjm
 (defobj obj!
   (head nil)
   (tail nil))
+  
 2.
 (defun compare-head (obj-1 obj-2)
   (if (< (head obj-1) (head obj-2))
@@ -19,6 +20,7 @@ Common lisp struct related grammars: defobj, defobjfun, objlet*, objdo*, defobjm
   (if (< head-1 head-2)
       t
       nil))
+  
 3.
 (let* ((obj1 (make-obj)))
   (setf (head obj1) 1))
