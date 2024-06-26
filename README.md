@@ -1,7 +1,6 @@
-Common lisp struct related macros.
-## defobj, defobjfun, objlet*, objdo*, defobjmacro, defobjmacrolet, etc.
-
+Common lisp macros for implicit struct accessing.
 ## Examples.
+## defobj, defobjfun, objlet*, objdo*, defobjmacro, defobjmacrolet, etc.
 Defining struct
 ```
 (defstruct (obj (:conc-name nil))
@@ -44,15 +43,14 @@ is equivalent to
 ## with-objs
 ```
 (with-objs (obj!)
-  BODY)
+  nil)
 ```
 is equivalent to
 ```
 (objlet* ((obj!))
-  BODY)
+  nil)
 ```
 .
-## Examples.
 ```
 (declaim (special obj!))
 ```
