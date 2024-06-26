@@ -62,7 +62,7 @@ Define a function fn.
   (defun fn ()
     (setf head 1)))
 ```
-Call fn.
+Call fn in the context where obj! is bound locally.
 ```
 (objlet* ((obj! (make-obj!))
   (fn)))
