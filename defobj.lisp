@@ -42,7 +42,7 @@
 	 (slot-names (mapcar #'(lambda (slot-form) (concatenate 'string conc-name (string (car slot-form)))) slot-forms)))
     (set-slot-names obj slot-names))
   `(progn
-     (export (quote ,obj))
+     ;; (export (quote ,obj))
      (defstruct (,obj (:conc-name ,(symbol-append obj '-))) ,@slot-forms)))
 
 (export 'get-bindings)
@@ -53,6 +53,11 @@
          (len (length obj-name))
          (binding-pairs '())
          (bound-objs '()))
+
+    ;; push obj binding
+    (push (cons obj-name obj) binding-pairs)
+    (push obj bound-objs)
+    
     (block find-match
       (do ((width len (- width 1)))
           ((< width 1))
@@ -65,9 +70,6 @@
                 (let ((bound-obj obj)
                       (prefix (subseq obj-name 0 i))
                       (postfix (subseq obj-name j len)))
-                  ;; push obj binding
-                  (push (cons obj-name bound-obj) binding-pairs)
-                  (push bound-obj bound-objs)
                   ;; push obj nickname (prefix or postfix) binding
                   (cond
 		    ;; prefix
@@ -145,19 +147,21 @@
   (format t "*objss* : ~s~%" *objss*))
 
 (defun modify-form (form)
-  (cond ((listp form) (let ((first-el (car form)))
-                        (if (and (symbolp first-el)
-                                 (find-if #'(lambda (el) (string-equal first-el el))
-                                          '(defobjfun
-                                            objlet*
-                                            objdo*
-                                            objdolist
-                                            defobjmacro
-                                            objmacrolet
-                                            objlambda)))
-
-                            (macroexpand-1 form)
-                            (mapcar #'modify-form form))))
+  (cond ((listp form)
+	 (if (eq (car form) `sb-int:quasiquote)
+	     form
+	     (let ((first-el (car form)))
+               (if (and (symbolp first-el)
+			(find-if #'(lambda (el) (string-equal first-el el))
+				 '(defobjfun
+				   objlet*
+				   objdo*
+				   objdolist
+				   defobjmacro
+				   objmacrolet
+				   objlambda)))
+		   (macroexpand-1 form)
+		   (mapcar #'modify-form form)))))
         ((and (symbolp form) (not (keywordp form)))
          (dolist (pair *binding-pairs* form)
            (if (string-equal form (car pair))
@@ -180,9 +184,7 @@
       (add-obj-bindings obj))
     ;; (format t "~%defobjfun binding-pairs : ~%~s~%" *binding-pairs*)
     ;; (format t "~%defobjfun bound-objs : ~%~s~%" *bound-objs*)
-    `(progn
-       (export (quote ,fun))
-       (defun ,fun ,(modify-form objs) ,@(modify-form body)))))
+    `(defun ,fun ,objs ,@(modify-form body))))
 
 (export 'objlet*)
 (defmacro objlet* (bindings &body body)
@@ -192,7 +194,7 @@
         (let ((new-binding '()))
           (push (modify-form (cadr binding)) new-binding)
           (add-obj-bindings (car binding))
-          (push (modify-form (car binding)) new-binding)
+          (push (car binding) new-binding)
           (push new-binding new-bindings)))
       (setq new-bindings (nreverse new-bindings))
       ;; (format t "~%objlet* binding-pairs : ~%~s~%" *binding-pairs*)
@@ -249,26 +251,27 @@
     ;; (format t "~%defobjmacro bound-objs : ~%~s~%" *bound-objs*)
     ;; (format t "~%defobjmacro objss : ~%~s~%" *objss*)
     ;; (format t "~%let-bindings : ~a~%" (get-let-bindings))
-    `(progn
-       (export (quote ,name))
-       ,(form 'defmacro name lambda-list
-	  (form 'let* (let ((let*-bindings '()))
-			(do ((objs (car *objss*))
-                             (binding-pairs *binding-pairs*))
-                            ((not objs))
-			  (let ((obj (car objs))
-				(binding-pair (car binding-pairs)))
-                            (if (eq obj (cdr binding-pair))
-				(progn
-				  (setq objs (cdr objs))
-				  (setq binding-pairs (cdr binding-pairs)))
-				(progn
-				  (push (form (read-from-string (car binding-pair))
-					  (form 'form `(quote ,(cadr binding-pair)) obj)) let*-bindings)
-				  (setq binding-pairs (cdr binding-pairs))))))
-			let*-bindings)
-            (macro-modify-form (car body))))))
-       )
+    (form 'defmacro name lambda-list
+      (if (stringp (car body))
+	  (car body))
+      (form 'let* (let ((let*-bindings '()))
+		    (do ((objs (car *objss*))
+                         (binding-pairs *binding-pairs*))
+                        ((not objs))
+		      (let ((obj (car objs))
+			    (binding-pair (car binding-pairs)))
+                        (if (eq obj (cdr binding-pair))
+			    (progn
+			      (setq objs (cdr objs))
+			      (setq binding-pairs (cdr binding-pairs)))
+			    (progn
+			      (push (form (read-from-string (car binding-pair))
+				      (form 'form `(quote ,(cadr binding-pair)) obj)) let*-bindings)
+			      (setq binding-pairs (cdr binding-pairs))))))
+		    let*-bindings)
+        (macro-modify-form (if (stringp (car body))
+			       (cadr body)
+			       (car body)))))))
 
 (export 'objmacrolet)
 (defmacro objmacrolet (definitions &body body)
@@ -296,7 +299,7 @@
                                             (setq binding-pairs (cdr binding-pairs))))))
                                   let*-bindings)
                       (modify-form (car body))))))) definitions)
-    (modify-form (car body))))
+    `(progn ,@(modify-form body))))
 
 (export 'objlambda)
 (defmacro objlambda (objs &body body)
@@ -306,7 +309,6 @@
     ;; (format t "~%defobjfun binding-pairs : ~%~s~%" *binding-pairs*)
     ;; (format t "~%defobjfun bound-objs : ~%~s~%" *bound-objs*)
     `(lambda ,(modify-form objs) ,@(modify-form body))))
-
 
 (export 'export-symbols)
 (defmacro export-symbols (pkg &rest objs)
@@ -318,3 +320,9 @@
        (dolist (,obj ',objs-n)
          (export (read-from-string (string ,obj))))
        (in-package ,(package-name pkg-curr)))))
+
+(export 'with-objs)
+(defmacro with-objs (obj-list &body body)
+  `(progn
+     (objlet* ,(mapcar #'(lambda (obj) (list obj)) obj-list)
+       ,@body)))

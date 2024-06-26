@@ -17,9 +17,15 @@
   `(not (eq ,a ,b)))
 
 (export 'while)
-(defmacro while (end-cond &body body)
+(defmacro while (continue-cond &body body)
   `(do nil
-    ((not ,end-cond) 1)
+    ((not ,continue-cond) nil)
+     ,@body))
+
+(export 'loop-until)
+(defmacro loop-until (end-cond &body body)
+  `(do nil
+    (,end-cond nil)
      ,@body))
 
 (export 'repeat)
@@ -91,3 +97,12 @@
                      (setf (cdr ,curr) (cdr ,next))
                      (return ,container)))))
          nil)))
+
+(export 'deftestfun)
+(defmacro deftestfun (name lambda-list &body body)
+  `(defun ,name ,lambda-list
+     (handler-case
+	 (progn
+	   ,@body)
+       (error (o)
+	 (format t "~a~%" o)))))
